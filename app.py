@@ -26,7 +26,7 @@ class RestaurantPizza(db.Model):
     price = db.Column(db.Float, nullable=False)
     pizza_id = db.Column(db.Integer, db.ForeignKey('pizza.id'), nullable=False)
     restaurant_id = db.Column(db.Integer, db.ForeignKey('restaurant.id'), nullable=False)
-    restaurant = db.relationship('Restaurant', backref=backref('restaurant_pizzas', cascade='all,delete'))
+    restaurant = db.relationship('Restaurant', backref=backref('restaurant_pizza', cascade='all,delete'))
 
 # Define routes
 @app.route('/restaurants')
@@ -85,28 +85,25 @@ def create_restaurant_pizza():
     restaurant_id = data.get('restaurant_id')
 
     if price is None or pizza_id is None or restaurant_id is None:
-        return jsonify({"errors": ["Price, pizza_id, and restaurant_id are required fields"]}), 400
+        return jsonify({"errors": ["validation errors"]}), 400
 
     if not (1 <= price <= 30):
         return jsonify({"errors": ["Price must be between 1 and 30"]}), 400
 
     restaurant = Restaurant.query.get(restaurant_id)
     pizza = Pizza.query.get(pizza_id)
-    
     if not restaurant:
         return jsonify({"errors": ["Restaurant not found"]}), 404
-    
     if not pizza:
         return jsonify({"errors": ["Pizza not found"]}), 404
 
-    restaurant_pizza = RestaurantPizza.query.filter_by(pizza_id=pizza_id, restaurant_id=restaurant_id).first()
-    if restaurant_pizza:
-        return jsonify({"errors": ["Restaurant pizza already exists for this pizza and restaurant"]}), 400
+    existing_restaurant = Restaurant.query.filter_by(name=restaurant.name).first()
+    if existing_restaurant:
+        return jsonify({"errors": ["Restaurant with the same name already exists"]}), 400
 
     restaurant_pizza = RestaurantPizza(price=price, pizza=pizza, restaurant=restaurant)
     db.session.add(restaurant_pizza)
     db.session.commit()
-    
     return jsonify({
         "id": restaurant_pizza.id,
         "price": restaurant_pizza.price,
@@ -122,8 +119,38 @@ def create_restaurant_pizza():
         }
     }), 201
 
+def seed_data():
+    RestaurantPizza.query.delete()
+    Pizza.query.delete()
+    Restaurant.query.delete()
+
+    pizza_lovers = Restaurant(name="Pizza Lovers", address="789 Elm Street")
+    pizza_world = Restaurant(name="Pizza World", address="321 Maple Avenue")
+    
+    db.session.add(pizza_lovers)
+    db.session.add(pizza_world)
+ 
+    db.session.commit()
+
+    margherita_pizza = Pizza(name="Margherita", ingredients="Dough, Tomato Sauce, Mozzarella, Basil")
+    veggie_supreme_pizza = Pizza(name="Veggie Supreme", ingredients="Dough, Tomato Sauce, Mozzarella, Bell Peppers, Onions, Mushrooms, Olives")
+   
+    db.session.add(margherita_pizza)
+    db.session.add(veggie_supreme_pizza)
+
+    db.session.commit()
+
+    db.session.add(RestaurantPizza(price=15, restaurant_id=pizza_lovers.id, pizza_id=margherita_pizza.id))
+    db.session.add(RestaurantPizza(price=18, restaurant_id=pizza_world.id, pizza_id=veggie_supreme_pizza.id))
+
+    db.session.commit()
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        seed_data()  
     app.run(debug=True)
+
+
 
